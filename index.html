@@ -24,7 +24,7 @@
         
         .container {
             width: 100%;
-            max-width: 1000px;
+            max-width: 1200px;
             background: white;
             border-radius: 15px;
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
@@ -364,7 +364,7 @@
         
         .questions-grid {
             display: grid;
-            grid-template-columns: repeat(10, 1fr);
+            grid-template-columns: repeat(auto-fill, minmax(50px, 1fr));
             gap: 8px;
             margin: 20px 0;
             padding: 0 20px;
@@ -531,6 +531,17 @@
                 justify-content: center;
             }
         }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .timer.warning {
+            animation: pulse 1s infinite;
+            color: #dc3545;
+        }
     </style>
 </head>
 <body>
@@ -695,7 +706,7 @@
         
         // Exam state
         let currentQuestion = 1;
-        const totalQuestions = 10;
+        let totalQuestions = 0; // Will be determined dynamically
         let examTime = 0;
         let timerInterval;
         let questionOrderArray = [];
@@ -719,9 +730,6 @@
             // Load answer data
             loadAnswerData();
             
-            // Check note availability for all questions
-            checkNoteAvailability();
-            
             // Set up event listeners
             startBtn.addEventListener('click', startExam);
             prevBtn.addEventListener('click', goToPrevQuestion);
@@ -740,9 +748,6 @@
                     closeNoteModal();
                 }
             });
-            
-            // Create original question order
-            originalQuestionOrder = Array.from({length: totalQuestions}, (_, i) => i + 1);
         }
         
         // Load answer data from answer.txt
@@ -762,11 +767,17 @@
                     lines.forEach(line => {
                         const match = line.match(/(\d+)\s*[=:]\s*(\d+)/);
                         if (match) {
-                            const questionNum = match[1].padStart(2, '0');
+                            const questionNum = parseInt(match[1]);
                             const answer = match[2];
                             answerData[questionNum] = answer;
                         }
                     });
+                    
+                    // Count total questions based on answer data
+                    totalQuestions = Object.keys(answerData).length;
+                    
+                    // Create original question order
+                    originalQuestionOrder = Array.from({length: totalQuestions}, (_, i) => i + 1);
                     
                     answersStatus.textContent = 'Available';
                     answersStatus.className = 'status-available';
@@ -814,10 +825,10 @@
         
         // Check resource availability
         function checkResources() {
-            // Check questions
+            // Check questions - we'll check for the first question to determine availability
             checkResource(`${baseUrl}/Questions/1.png`, questionsStatus);
             
-            // Check notes - try both text and image formats
+            // Check notes - we'll check for the first note to determine availability
             checkResource(`${baseUrl}/Notes/1.txt`, notesStatus, true);
         }
         
@@ -883,6 +894,9 @@
                 shuffleArray(questionOrderArray);
             }
             
+            // Check note availability for all questions
+            checkNoteAvailability();
+            
             // Reset tracking sets
             markedQuestions.clear();
             answeredQuestions.clear();
@@ -910,6 +924,11 @@
         // Generate question boxes
         function generateQuestionBoxes() {
             questionsGrid.innerHTML = '';
+            
+            // Adjust grid layout based on number of questions
+            const gridColumns = totalQuestions > 10 ? 15 : 10;
+            questionsGrid.style.gridTemplateColumns = `repeat(${gridColumns}, 1fr)`;
+            
             for (let i = 1; i <= totalQuestions; i++) {
                 const box = document.createElement('div');
                 box.className = 'question-box';
@@ -1012,11 +1031,8 @@
             const actualQuestionNum = questionOrder.value === 'shuffled' ? 
                 questionOrderArray[currentQuestion - 1] : currentQuestion;
                 
-            // Format question number with leading zero
-            const questionNumFormatted = actualQuestionNum.toString().padStart(2, '0');
-            
             // Get answer from answer data
-            const answer = answerData[questionNumFormatted] || 'Not available';
+            const answer = answerData[actualQuestionNum] || 'Not available';
             
             correctAnswer.textContent = answer;
             
@@ -1163,48 +1179,42 @@
                 </div>
             `;
             
-            // Try to load the image with the correct GitHub Pages URL structure
-            const imageUrl = `${baseUrl}/Questions/${actualQuestionNum}.png`;
-            
+            // Try to load image with different naming formats
             const img = new Image();
+            
             img.onload = function() {
-                imageContainer.innerHTML = `
-                    <img src="${imageUrl}" alt="Question ${actualQuestionNum}" class="question-image">
-                    <p style="margin-top: 10px; font-size: 0.9rem; color: #28a745;">
-                        <i class="fas fa-check-circle"></i> Successfully loaded image: ${actualQuestionNum}.png
-                    </p>
-                `;
+                imageContainer.innerHTML = '';
+                imageContainer.appendChild(img);
             };
             
             img.onerror = function() {
                 imageContainer.innerHTML = `
                     <div class="image-placeholder">
                         <div>
-                            <i class="fas fa-times-circle fa-3x" style="margin-bottom: 15px; color: #dc3545;"></i>
-                            <p>No image found for Question ${actualQuestionNum}</p>
-                            <p style="font-size: 0.9rem; margin-top: 10px;">Tried URL: ${imageUrl}</p>
+                            <i class="fas fa-exclamation-triangle fa-3x" style="margin-bottom: 15px; color: #dc3545;"></i>
+                            <p>Image not found for Question ${actualQuestionNum}</p>
+                            <p style="font-size: 0.9rem; margin-top: 10px;">Tried path: Questions/${actualQuestionNum}.png</p>
                         </div>
                     </div>
                 `;
             };
             
-            img.src = imageUrl;
+            img.src = `${baseUrl}/Questions/${actualQuestionNum}.png`;
+            img.alt = `Question ${actualQuestionNum}`;
+            img.className = 'question-image';
         }
         
-        // Timer function
+        // Start timer
         function startTimer() {
-            // Update timer immediately
             updateTimerDisplay();
             
-            // Set interval for continuous update
             timerInterval = setInterval(() => {
                 examTime--;
                 updateTimerDisplay();
                 
                 if (examTime <= 0) {
                     clearInterval(timerInterval);
-                    alert('Time is up! Your exam will be submitted now.');
-                    // In a real implementation, this would auto-submit the exam
+                    alert('Exam time is over!');
                 }
             }, 1000);
         }
@@ -1216,10 +1226,17 @@
             const seconds = examTime % 60;
             
             timer.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            // Change color when time is running out
+            if (examTime < 300) { // Less than 5 minutes
+                timer.classList.add('warning');
+            } else {
+                timer.classList.remove('warning');
+            }
         }
         
         // Initialize the page
-        window.onload = initPage;
+        window.addEventListener('DOMContentLoaded', initPage);
     </script>
 </body>
 </html>
