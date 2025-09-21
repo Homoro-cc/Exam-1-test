@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Exam Page</title>
+<style>
+    body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0; background: #f0f0f0; }
+    #startPage, #examPage { display: none; padding: 20px; }
+    #examPage img { max-width: 80%; max-height: 400px; display: block; margin: 20px auto; }
+    button { margin: 5px; padding: 10px 20px; font-size: 16px; cursor: pointer; }
+    #noteBox, #answerBox { display: none; position: fixed; top: 50px; left: 50%; transform: translateX(-50%); background: white; border: 2px solid #333; padding: 20px; max-width: 80%; z-index: 100; }
+    #noteBox img, #noteBox p { max-width: 100%; max-height: 300px; }
+    #answerBox { top: 10px; right: 10px; left: auto; transform: none; padding: 10px; border-radius: 5px; }
+    #timer { font-size: 20px; margin: 10px; }
+    #checkboxMark { margin-left: 10px; }
+</style>
+</head>
+<body>
+
+<div id="startPage">
+    <h1>Exam Name</h1>
+    <button onclick="startExam()">Start Exam</button>
+</div>
+
+<div id="examPage">
+    <div id="timer">Time: 00:00</div>
+    <img id="questionImage" src="" alt="Question">
+    <div>
+        <button onclick="prevQuestion()">Previous</button>
+        <button onclick="nextQuestion()">Next</button>
+        <button id="noteBtn" onclick="showNote()">Show Note</button>
+        <button onclick="showAnswer()">Check Answer</button>
+        <label><input type="checkbox" id="checkboxMark"> Mark</label>
+    </div>
+</div>
+
+<div id="noteBox">
+    <button onclick="closeNote()" style="float:right;">X</button>
+    <div id="noteContent"></div>
+</div>
+
+<div id="answerBox"></div>
+
+<script>
+const questionsFolder = 'Questions/';
+const notesFolder = 'Notes/';
+const totalQuestions = 5; // change this to your total question count
+let currentQ = 1;
+let timerSec = 0;
+let timerInterval;
+let answers = [];
+
+window.onload = function() {
+    document.getElementById('startPage').style.display = 'block';
+    loadAnswers();
+};
+
+function startExam() {
+    document.getElementById('startPage').style.display = 'none';
+    document.getElementById('examPage').style.display = 'block';
+    loadQuestion();
+    startTimer();
+}
+
+function loadAnswers() {
+    fetch('Answer.txt')
+    .then(res => res.text())
+    .then(data => { answers = data.split('\n'); })
+    .catch(err => console.log('Error loading answers:', err));
+}
+
+function loadQuestion() {
+    document.getElementById('questionImage').src = `${questionsFolder}${String(currentQ).padStart(2,'0')}.jpg`;
+
+    // check if note exists
+    fetch(`${notesFolder}${String(currentQ).padStart(2,'0')}.txt`)
+        .then(res => {
+            if(res.ok) document.getElementById('noteBtn').style.display = 'inline-block';
+            else throw 'txt not found';
+        })
+        .catch(() => {
+            fetch(`${notesFolder}${String(currentQ).padStart(2,'0')}.jpg`)
+            .then(res => {
+                if(res.ok) document.getElementById('noteBtn').style.display = 'inline-block';
+                else document.getElementById('noteBtn').style.display = 'none';
+            });
+        });
+}
+
+function nextQuestion() {
+    if(currentQ < totalQuestions) { currentQ++; loadQuestion(); }
+}
+
+function prevQuestion() {
+    if(currentQ > 1) { currentQ--; loadQuestion(); }
+}
+
+function showNote() {
+    const noteContent = document.getElementById('noteContent');
+    // try txt first
+    fetch(`${notesFolder}${String(currentQ).padStart(2,'0')}.txt`)
+        .then(res => {
+            if(res.ok) return res.text();
+            else throw 'txt not found';
+        })
+        .then(txt => {
+            noteContent.innerHTML = `<p>${txt}</p>`;
+            document.getElementById('noteBox').style.display = 'block';
+        })
+        .catch(() => {
+            // try image
+            noteContent.innerHTML = `<img src="${notesFolder}${String(currentQ).padStart(2,'0')}.jpg">`;
+            document.getElementById('noteBox').style.display = 'block';
+        });
+}
+
+function closeNote() {
+    document.getElementById('noteBox').style.display = 'none';
+}
+
+function showAnswer() {
+    const ansBox = document.getElementById('answerBox');
+    ansBox.textContent = answers[currentQ-1] || 'No Answer';
+    ansBox.style.display = 'block';
+    setTimeout(()=> { ansBox.style.display = 'none'; }, 3000);
+}
+
+function startTimer() {
+    timerInterval = setInterval(()=> {
+        timerSec++;
+        const min = String(Math.floor(timerSec/60)).padStart(2,'0');
+        const sec = String(timerSec%60).padStart(2,'0');
+        document.getElementById('timer').textContent = `Time: ${min}:${sec}`;
+    }, 1000);
+}
+</script>
+
+</body>
+</html>
